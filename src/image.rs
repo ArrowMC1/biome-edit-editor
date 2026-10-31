@@ -23,14 +23,14 @@ impl Image {
         }
     }
 
-    fn put_pixel(&mut self, x: usize, y: usize, color: u32) {
+    /*fn put_pixel(&mut self, x: usize, y: usize, color: u32) {
         if x >= self.logical_width || y >= self.logical_height {
             panic!("X or Y Above Logical Width/Height");
             //return;
         }
 
         self.pixels[y * self.logical_width + x] = color;
-    }
+    }*/
 
     fn send_texture_to_gpu_internal(&mut self, ui: &mut egui::Ui) {
         // Convert our u32 RGBA pixels into egui's ColorImage.
@@ -92,19 +92,38 @@ impl Image {
 }
 
 use rayon::prelude::*;
-use crate::wrapper::get_biome_colour_square_parallel;
+use crate::wrapper::{get_biome_colour_square_parallel, set_global_main_map};
 
-struct SharedOutput(*mut u32);
+struct SharedOutput{
+    main_map: *mut u32,
+    t_map: *mut u16,
+    h_map: *mut u16,
+    c_map: *mut u16,
+    e_map: *mut u16,
+    w_map: *mut u16
+
+}
+
+impl SharedOutput {
+    fn new(main_map: *mut u32) -> Self {
+        Self{
+            main_map: main_map,
+            t_map: std::ptr::null_mut(),
+            h_map: std::ptr::null_mut(),
+            c_map: std::ptr::null_mut(),
+            e_map: std::ptr::null_mut(),
+            w_map: std::ptr::null_mut()
+        }
+    }
+
+    fn main_map_as_ptr(&self) -> *mut u32 {
+        self.main_map
+    }
+}
 
 // SAFETY: Each Rayon task writes to a disjoint set of indices.
 unsafe impl Send for SharedOutput {}
 unsafe impl Sync for SharedOutput {}
-
-impl SharedOutput {
-    fn as_ptr(&self) -> *mut u32 {
-        self.0
-    }
-}
 
 impl Image {
     pub fn gen_biomes_multithreaded(&mut self) {
@@ -114,7 +133,7 @@ impl Image {
         let width = self.logical_width as i32;
         let height = self.logical_height as i32;
 
-        let output = SharedOutput(self.pixels.as_mut_ptr());
+        set_global_main_map(self.pixels.as_mut_ptr());
 
         (0..num_threads).into_par_iter().for_each(|thread_no| {
             get_biome_colour_square_parallel(
@@ -124,8 +143,7 @@ impl Image {
                 width,
                 height,
                 num_threads,
-                thread_no,
-                output.as_ptr(),
+                thread_no
             );
         });
     }

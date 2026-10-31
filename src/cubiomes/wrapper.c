@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "biomes.h"
 #include "generator.h"
+#include "globalState.h"
 
 /*typedef union {
     struct {
@@ -112,6 +113,23 @@ uint32_t c_get_biome_colour(int biomeID)
     }
 }
 
+void c_set_global_shift_noise(bool val){
+    shiftNoise = val;
+}
+
+void c_set_global_main_map(uint32_t* ptr){
+    p_main_map = ptr;
+}
+
+void c_set_global_noise_maps(uint16_t* _p_t, uint16_t* _p_h, uint16_t* _p_c, uint16_t* _p_e, uint16_t* _p_w){
+    p_t = _p_t;
+    p_h = _p_h;
+    p_c = _p_c;
+    p_e = _p_e;
+    p_w = _p_w;
+
+}
+
 // Thread No's MUST be between 0 and num_threads - 1 (Optimised with an LLM - TODO: review correctness)
 void c_get_biome_colour_square_parallel(
     int64_t seed,
@@ -120,9 +138,7 @@ void c_get_biome_colour_square_parallel(
     int length,
     int height,
     int num_threads,
-    int thread_no,
-    uint32_t *results
-)
+    int thread_no)
 {
     if (num_threads <= 0 ||
         thread_no < 0 ||
@@ -195,7 +211,7 @@ void c_get_biome_colour_square_parallel(
 
             int biomeID = getBiomeAt(&g, 4, x, 320, z);
 
-            results[index] = c_get_biome_colour(biomeID);
+            p_main_map[index] = c_get_biome_colour(biomeID);
         }
     }
 }

@@ -19,6 +19,7 @@ fn main() {
         .file("src/cubiomes/util.c")
 
         .file("src/cubiomes/wrapper.c")
+        .file("src/cubiomes/globalState.c")
 
         .compile("cubiomes");
 
