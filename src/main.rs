@@ -4,6 +4,8 @@ use eframe::{NativeOptions, egui};
 use egui_dock::tab_viewer::OnCloseResponse;
 use egui_dock::{DockArea, DockState, NodeIndex, Style};
 
+use crate::wrapper::*;
+
 use std::time::Instant;
 
 mod wrapper;
@@ -65,8 +67,10 @@ impl Default for MyApp {
 
         let mut main_map: Image = Image::new(800, 800, 2048, 2048);
 
+        set_global_main_map(main_map.raw_pixel_data_ptr());
+
         let start = Instant::now();
-        main_map.gen_biomes_multithreaded();      
+        gen_biomes_multithreaded(2048, 2048, 32);      
         let duration = start.elapsed();
         println!("Biome Generattion Took: {:?}ms", duration.as_millis());
 
