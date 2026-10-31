@@ -1,0 +1,14 @@
+[package]
+name = "biome-edit-editor"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+eframe = "0.36.2"
+egui = "0.36.2"
+egui_dock = "0.21"
+rayon = "1.12.0"
+
+[build-dependencies]
+cc = "1"
