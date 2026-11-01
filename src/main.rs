@@ -29,6 +29,7 @@ fn main() -> eframe::Result<()> {
 
 struct TabViewer<'a> {
     main_map: &'a mut Image,
+    map_generator: &'a mut MapGenerator,
 }
 
 impl egui_dock::TabViewer for TabViewer<'_> {
@@ -45,6 +46,13 @@ impl egui_dock::TabViewer for TabViewer<'_> {
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         if tab == "Main" {
             self.main_map.show_texture(ui);
+        } else if tab == "Settings" {
+            
+            if ui.button("Regenerate").clicked(){
+                //gen_biomes_multithreaded(2048, 2048, 32);     
+                self.main_map.send_texture_to_gpu();       
+            }
+
         } else {
             ui.label(format!("Content of {tab}"));
         }
@@ -58,6 +66,7 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 struct MyApp {
     tree: DockState<String>,
     main_map: Image,
+    map_generator: MapGenerator
 }
 
 impl Default for MyApp {
@@ -67,20 +76,21 @@ impl Default for MyApp {
 
         let mut main_map: Image = Image::new(800, 800, 2048, 2048);
 
-        set_global_main_map(main_map.raw_pixel_data_ptr());
+        let mut map_generator = MapGenerator::new(2048, 2048);
+
 
         let start = Instant::now();
-        gen_biomes_multithreaded(2048, 2048, 32);      
+        map_generator.gen_biomes_multithreaded(32);
         let duration = start.elapsed();
         println!("Biome Generattion Took: {:?}ms", duration.as_millis());
 
-        main_map.send_texture_to_gpu();      
+        main_map.copy_u32_color_data(&map_generator.main_map);
 
         //t1 is main
 
         let [_, _b1] = tree
             .main_surface_mut()
-            .split_below(NodeIndex::root(), 9.0/10.0, vec!["Noise Modifiers".to_owned()]);
+            .split_below(NodeIndex::root(), 9.0/10.0, vec!["Settings".to_owned()]);
 
 
         let [_, t2] =
@@ -109,7 +119,7 @@ impl Default for MyApp {
             .main_surface_mut()
             .split_below(t4, 1.0/2.0, vec!["Peaks & Valleys".to_owned()]);
 
-        Self {tree, main_map }
+        Self {tree, main_map, map_generator}
 
     }
 }
@@ -118,6 +128,6 @@ impl eframe::App for MyApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         DockArea::new(&mut self.tree)
             .style(Style::from_egui(ui.style().as_ref()))
-            .show_inside(ui, &mut TabViewer { main_map: &mut self.main_map });
+            .show_inside(ui, &mut TabViewer { main_map: &mut self.main_map, map_generator: &mut self.map_generator });
     }
 }

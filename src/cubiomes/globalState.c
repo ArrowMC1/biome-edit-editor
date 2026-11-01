@@ -7,3 +7,4 @@ uint16_t* p_c = NULL;
 uint16_t* p_e = NULL;
 uint16_t* p_w = NULL;
 bool shiftNoise = true;
+bool writeMode = true;

@@ -117,6 +117,10 @@ void c_set_global_shift_noise(bool val){
     shiftNoise = val;
 }
 
+void c_set_global_write_mode(bool val){
+    writeMode = val;
+}
+
 void c_set_global_main_map(uint32_t* ptr){
     p_main_map = ptr;
 }

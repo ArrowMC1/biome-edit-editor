@@ -10,6 +10,7 @@ pub struct Image {
     dirty: bool,
 }
 
+
 impl Image {
     pub fn new(visual_width: usize, visual_height: usize, logical_width: usize, logical_height: usize) -> Self {
         Self {
@@ -76,6 +77,15 @@ impl Image {
 
     pub fn send_texture_to_gpu(&mut self){
         self.dirty = true;
+    }
+
+    pub fn copy_u32_color_data(&mut self, img_data: &Vec<u32>){
+        self.pixels = img_data.clone();
+        self.send_texture_to_gpu();
+    }
+
+    pub fn copy_u16_greyscale_data(&mut self){
+        self.send_texture_to_gpu();
     }
 
 

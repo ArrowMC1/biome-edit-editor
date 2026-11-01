@@ -10,6 +10,7 @@ extern uint16_t* p_c;
 extern uint16_t* p_e;
 extern uint16_t* p_w;
 extern bool shiftNoise;
+extern bool writeMode;
 
 
 #endif
