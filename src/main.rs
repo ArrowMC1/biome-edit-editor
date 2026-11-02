@@ -12,6 +12,7 @@ mod wrapper;
 mod image;
 
 use image::Image;
+use image::Images;
 
 fn main() -> eframe::Result<()> {
     let options = NativeOptions {
@@ -28,7 +29,7 @@ fn main() -> eframe::Result<()> {
 }
 
 struct TabViewer<'a> {
-    main_map: &'a mut Image,
+    images: &'a mut Images,
     map_generator: &'a mut MapGenerator,
 }
 
@@ -45,12 +46,36 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
         if tab == "Main" {
-            self.main_map.show_texture(ui);
-        } else if tab == "Settings" {
+            self.images.main_map.show_texture(ui);
+        }
+
+        else if tab == "Temperature" {
+            self.images.t_map.show_texture(ui);
+        } 
+        else if tab == "Humidity" {
+            self.images.h_map.show_texture(ui);
+        } 
+        else if tab == "Continental" {
+            self.images.c_map.show_texture(ui);
+        } 
+        else if tab == "Erosion" {
+            self.images.e_map.show_texture(ui);
+        } 
+        else if tab == "Weirdness" {
+            self.images.w_map.show_texture(ui);
+        } 
+        
+        else if tab == "Settings" {
             
             if ui.button("Regenerate").clicked(){
-                //gen_biomes_multithreaded(2048, 2048, 32);     
-                self.main_map.send_texture_to_gpu();       
+                self.map_generator.gen_biomes_multithreaded(32);
+                self.images.main_map.copy_u32_color_data(&self.map_generator.main_map);
+                self.images.t_map.copy_u16_greyscale_data(&self.map_generator.t_map);
+                self.images.h_map.copy_u16_greyscale_data(&self.map_generator.h_map);
+                self.images.c_map.copy_u16_greyscale_data(&self.map_generator.c_map);
+                self.images.e_map.copy_u16_greyscale_data(&self.map_generator.e_map);
+                self.images.w_map.copy_u16_greyscale_data(&self.map_generator.w_map);
+
             }
 
         } else {
@@ -65,28 +90,42 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
 struct MyApp {
     tree: DockState<String>,
-    main_map: Image,
+    images: Images,
     map_generator: MapGenerator
 }
 
 impl Default for MyApp {
-    //splits into 8 windows t1 being top 1 going till t4 on the right, same with bottom windows as
     fn default() -> Self {
         let mut tree = DockState::new(vec!["Main".to_owned()]);
 
-        let mut main_map: Image = Image::new(800, 800, 2048, 2048);
+        let mut images: Images = Images::new(800, 800, 300, 300, 2048, 2048);
 
         let mut map_generator = MapGenerator::new(2048, 2048);
 
-
         let start = Instant::now();
+
+        set_global_write_mode(true);
+        set_global_shift_noise(false);
         map_generator.gen_biomes_multithreaded(32);
+        set_global_shift_noise(true);
+        set_global_write_mode(false);
+
         let duration = start.elapsed();
-        println!("Biome Generattion Took: {:?}ms", duration.as_millis());
+        println!("Biome Generation Took: {:?}ms", duration.as_millis());
 
-        main_map.copy_u32_color_data(&map_generator.main_map);
 
-        //t1 is main
+        //for value in &mut map_generator.c_map {
+        //    *value = value.saturating_mul(2);
+        //}
+
+        images.main_map.copy_u32_color_data(&map_generator.main_map);
+        images.t_map.copy_u16_greyscale_data(&map_generator.t_map);
+        images.h_map.copy_u16_greyscale_data(&map_generator.h_map);
+        images.c_map.copy_u16_greyscale_data(&map_generator.c_map);
+        images.e_map.copy_u16_greyscale_data(&map_generator.e_map);
+        images.w_map.copy_u16_greyscale_data(&map_generator.w_map);
+
+
 
         let [_, _b1] = tree
             .main_surface_mut()
@@ -119,7 +158,7 @@ impl Default for MyApp {
             .main_surface_mut()
             .split_below(t4, 1.0/2.0, vec!["Peaks & Valleys".to_owned()]);
 
-        Self {tree, main_map, map_generator}
+        Self {tree, images, map_generator}
 
     }
 }
@@ -128,6 +167,6 @@ impl eframe::App for MyApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         DockArea::new(&mut self.tree)
             .style(Style::from_egui(ui.style().as_ref()))
-            .show_inside(ui, &mut TabViewer { main_map: &mut self.main_map, map_generator: &mut self.map_generator });
+            .show_inside(ui, &mut TabViewer { images: &mut self.images, map_generator: &mut self.map_generator });
     }
 }

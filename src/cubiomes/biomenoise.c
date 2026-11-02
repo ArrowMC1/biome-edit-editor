@@ -1,5 +1,7 @@
 #include "biomenoise.h"
 
+#include "globalState.h"
+#include "rng.h"
 #include "tables/btree18.h"
 #include "tables/btree192.h"
 #include "tables/btree19.h"
@@ -9,6 +11,8 @@
 #include "tables/btree262.h"
 #include "tables/btree263.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -1140,6 +1144,21 @@ void initBiomeNoise(BiomeNoise *bn, int mc)
     bn->mc = mc;
 }
 
+inline size_t pixelPos(int shiftedX, int shiftedZ){
+    return (size_t)shiftedZ * imgLength + shiftedX;
+}
+
+inline uint16_t floatToU16(float val){
+    val = clamp(val, -2.0, 2.0);
+    val += 2.0f;
+    val *= 65535.0f / 4.0f;
+    uint16_t valCasted = (uint16_t)(clamp(val, 0.0f, 65535.0f));
+    return valCasted;
+}
+
+inline float u16ToFloat(uint16_t val) {
+    return ((float)val * 4.0f / 65535.0f) - 2.0f;
+}
 
 /// Biome sampler for MC 1.18
 int sampleBiomeNoise(const BiomeNoise *bn, int64_t *np, int x, int y, int z,
@@ -1155,15 +1174,49 @@ int sampleBiomeNoise(const BiomeNoise *bn, int64_t *np, int x, int y, int z,
 
     float t = 0, h = 0, c = 0, e = 0, d = 0, w = 0;
     double px = x, pz = z;
-    if (!(sample_flags & SAMPLE_NO_SHIFT))
+    if (!(sample_flags & SAMPLE_NO_SHIFT) && shiftNoise)
     {
         px += sampleDoublePerlin(&bn->climate[NP_SHIFT], x, 0, z) * 4.0;
         pz += sampleDoublePerlin(&bn->climate[NP_SHIFT], z, x, 0) * 4.0;
     }
 
-    c = sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
-    e = sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
-    w = sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+    int shiftedX = (int)(px + (imgLength / 2.0));
+    int shiftedZ = (int)(pz + (imgHeight / 2.0));
+
+    bool inImage = shiftedX >= 0 && shiftedX < imgLength && shiftedZ >= 0 && shiftedZ < imgHeight;
+    size_t pos = pixelPos(shiftedX, shiftedZ);
+
+    if (writeMode && inImage){
+        c = sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
+        e = sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
+        w = sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+        t = sampleDoublePerlin(&bn->climate[NP_TEMPERATURE], px, 0, pz);
+        h = sampleDoublePerlin(&bn->climate[NP_HUMIDITY], px, 0, pz);
+
+        size_t pos = pixelPos(shiftedX, shiftedZ);
+        
+        p_c[pos] = floatToU16(c);
+        p_e[pos] = floatToU16(e);
+        p_w[pos] = floatToU16(w);
+        p_t[pos] = floatToU16(t);
+        p_h[pos] = floatToU16(h);
+    }
+    else if (inImage){
+
+        c = u16ToFloat(p_c[pos]);
+        e = u16ToFloat(p_e[pos]);
+        w = u16ToFloat(p_w[pos]);
+        t = u16ToFloat(p_t[pos]);
+        h = u16ToFloat(p_h[pos]);
+
+    }
+    else{
+        c = sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
+        e = sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
+        w = sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+        t = sampleDoublePerlin(&bn->climate[NP_TEMPERATURE], px, 0, pz);
+        h = sampleDoublePerlin(&bn->climate[NP_HUMIDITY], px, 0, pz);
+    }
 
     if (!(sample_flags & SAMPLE_NO_DEPTH))
     {
@@ -1175,9 +1228,6 @@ int sampleBiomeNoise(const BiomeNoise *bn, int64_t *np, int x, int y, int z,
         //double py = y + sampleDoublePerlin(&bn->shift, y, z, x) * 4.0;
         d = 1.0 - (y * 4) / 128.0 - 83.0/160.0 + off;
     }
-
-    t = sampleDoublePerlin(&bn->climate[NP_TEMPERATURE], px, 0, pz);
-    h = sampleDoublePerlin(&bn->climate[NP_HUMIDITY], px, 0, pz);
 
     int64_t l_np[6];
     int64_t *p_np = np ? np : l_np;

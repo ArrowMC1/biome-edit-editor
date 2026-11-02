@@ -54,12 +54,12 @@ pub fn set_global_write_mode(val: bool){
 }
 
 /// WARNING: Only Call This When No Other C ABI calls are running!
-pub fn set_global_main_map(ptr: *mut u32){
+fn set_global_main_map(ptr: *mut u32){
     unsafe {c_set_global_main_map(ptr)}
 }
 
 /// WARNING: Only Call This When No Other C ABI calls are running!
-pub fn set_global_noise_maps(
+fn set_global_noise_maps(
         p_t: *mut u16,
         p_h: *mut u16,
         p_c: *mut u16,
@@ -108,6 +108,13 @@ impl MapGenerator{
         assert!(num_threads > 0, "Thread count must be positive");
 
         set_global_main_map(self.main_map.as_mut_ptr());
+        set_global_noise_maps(
+            self.t_map.as_mut_ptr(), 
+            self.h_map.as_mut_ptr(), 
+            self.c_map.as_mut_ptr(), 
+            self.e_map.as_mut_ptr(), 
+            self.w_map.as_mut_ptr()
+        );
 
         (0..num_threads).into_par_iter().for_each(|thread_no| {
             get_biome_colour_square_parallel(

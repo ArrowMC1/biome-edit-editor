@@ -3,6 +3,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
+extern int imgLength;
+extern int imgHeight;
+
 extern uint32_t* p_main_map;
 extern uint16_t* p_t;
 extern uint16_t* p_h;
