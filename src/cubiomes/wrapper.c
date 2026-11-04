@@ -16,7 +16,7 @@
 } Color;*/
 
 
-uint32_t c_get_biome_colour(int biomeID)
+uint32_t c_get_biome_colour_old(int biomeID)
 {
     switch (biomeID)
     {
@@ -107,6 +107,112 @@ uint32_t c_get_biome_colour(int biomeID)
         case wooded_hills:                      return 0x2a4d15ff;
 
         case end_barrens:                       return 0xff00ffff;
+
+        default:
+            return 0x000000ff;
+    }
+}
+
+uint32_t c_get_biome_colour(int biomeID)
+{
+    switch (biomeID)
+    {
+        case ocean:                             return 0x000070ff;
+        case plains:                            return 0x8db360ff;
+        case desert:                            return 0xfa9418ff;
+        case windswept_hills:                   return 0x606060ff;
+        case forest:                            return 0x056621ff;
+        case taiga:                             return 0x0b6a5fff;
+        case swamp:                             return 0x07f9b2ff;
+        case river:                             return 0x0000ffff;
+        case nether_wastes:                     return 0x572526ff;
+        case the_end:                           return 0x8080ffff;
+        case frozen_ocean:                      return 0x7070d6ff;
+        case frozen_river:                      return 0xa0a0ffff;
+        case snowy_plains:                      return 0xffffffff;
+        case snowy_mountains:                   return 0xa0a0a0ff;
+        case mushroom_fields:                   return 0xff00ffff;
+        case mushroom_field_shore:              return 0xa000ffff;
+        case beach:                             return 0xfade55ff;
+        case desert_hills:                      return 0xd25f12ff;
+        case wooded_hills:                      return 0x22551cff;
+        case taiga_hills:                       return 0x163933ff;
+        case mountain_edge:                     return 0x72789aff;
+        case jungle:                            return 0x507b0aff;
+        case jungle_hills:                      return 0x2c4205ff;
+        case sparse_jungle:                     return 0x60930fff;
+        case deep_ocean:                        return 0x000030ff;
+        case stony_shore:                       return 0xa2a284ff;
+        case snowy_beach:                       return 0xfaf0c0ff;
+        case birch_forest:                      return 0x307444ff;
+        case birch_forest_hills:                return 0x1f5f32ff;
+        case dark_forest:                       return 0x40511aff;
+        case snowy_taiga:                       return 0x31554aff;
+        case snowy_taiga_hills:                 return 0x243f36ff;
+        case old_growth_pine_taiga:             return 0x596651ff;
+        case giant_tree_taiga_hills:            return 0x454f3eff;
+        case windswept_forest:                  return 0x5b7352ff;
+        case savanna:                           return 0xbdb25fff;
+        case savanna_plateau:                   return 0xa79d64ff;
+        case badlands:                          return 0xd94515ff;
+        case wooded_badlands:                   return 0xb09765ff;
+        case badlands_plateau:                  return 0xca8c65ff;
+        case small_end_islands:                 return 0x4b4babff;
+        case end_midlands:                      return 0xc9c959ff;
+        case end_highlands:                     return 0xb5b536ff;
+        case end_barrens:                       return 0x7070ccff;
+        case warm_ocean:                        return 0x0000acff;
+        case lukewarm_ocean:                    return 0x000090ff;
+        case cold_ocean:                        return 0x202070ff;
+        case deep_warm_ocean:                   return 0x000050ff;
+        case deep_lukewarm_ocean:               return 0x000040ff;
+        case deep_cold_ocean:                   return 0x202038ff;
+        case deep_frozen_ocean:                 return 0x404090ff;
+        case seasonal_forest:                   return 0x2f560fff;
+        case rainforest:                        return 0x47840eff;
+        case shrubland:                         return 0x789e31ff;
+        case the_void:                          return 0x000000ff;
+        case sunflower_plains:                  return 0xb5db88ff;
+        case desert_lakes:                      return 0xffbc40ff;
+        case windswept_gravelly_hills:          return 0x888888ff;
+        case flower_forest:                     return 0x2d8e49ff;
+        case taiga_mountains:                   return 0x339287ff;
+        case swamp_hills:                       return 0x2fffdaff;
+        case ice_spikes:                        return 0xb4dcdcff;
+        case modified_jungle:                   return 0x78a332ff;
+        case modified_jungle_edge:              return 0x88bb37ff;
+        case old_growth_birch_forest:           return 0x589c6cff;
+        case tall_birch_hills:                  return 0x47875aff;
+        case dark_forest_hills:                 return 0x687942ff;
+        case snowy_taiga_mountains:             return 0x597d72ff;
+        case old_growth_spruce_taiga:           return 0x818e79ff;
+        case giant_spruce_taiga_hills:          return 0x6d7766ff;
+        case modified_gravelly_mountains:       return 0x839b7aff;
+        case windswept_savanna:                 return 0xe5da87ff;
+        case shattered_savanna_plateau:         return 0xcfc58cff;
+        case eroded_badlands:                   return 0xff6d3dff;
+        case modified_wooded_badlands_plateau:  return 0xd8bf8dff;
+        case modified_badlands_plateau:         return 0xf2b48dff;
+        case bamboo_jungle:                     return 0x849500ff;
+        case bamboo_jungle_hills:               return 0x5c6c04ff;
+        case soul_sand_valley:                  return 0x4d3a2eff;
+        case crimson_forest:                    return 0x981a11ff;
+        case warped_forest:                     return 0x49907bff;
+        case basalt_deltas:                     return 0x645f63ff;
+        case dripstone_caves:                   return 0x4e3012ff;
+        case lush_caves:                        return 0x283c00ff;
+        case meadow:                            return 0x60a445ff;
+        case grove:                             return 0x477268ff;
+        case snowy_slopes:                      return 0xc4c4c4ff;
+        case jagged_peaks:                      return 0xdcdcc8ff;
+        case frozen_peaks:                      return 0xb0b3ceff;
+        case stony_peaks:                       return 0x7b8f74ff;
+        case deep_dark:                         return 0x031f29ff;
+        case mangrove_swamp:                    return 0x2ccc8eff;
+        case cherry_grove:                      return 0xff91c8ff;
+        case pale_garden:                       return 0x696d95ff;
+        case sulfur_caves:                      return 0xc8d232ff;
+        case dappled_forest:                    return 0xeb9234ff;
 
         default:
             return 0x000000ff;

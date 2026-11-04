@@ -3,11 +3,13 @@ use egui::{Color32, TextureHandle, TextureOptions};
 pub struct Image {
     visual_width: usize,
     visual_height: usize,
-    logical_width: usize,
-    logical_height: usize,
+    pub logical_width: usize,
+    pub logical_height: usize,
     pixels: Vec<u32>,
     texture: Option<TextureHandle>,
     dirty: bool,
+    pub hover_pos: Option<(usize, usize)>,
+    pub zoom_data: (f64, f64, f64)
 }
 
 
@@ -21,6 +23,8 @@ impl Image {
             pixels: vec![0x000000FF; logical_width * logical_height],
             texture: None,
             dirty: false,
+            hover_pos: None,
+            zoom_data: (1.0, 0.5, 0.5),
         }
     }
 
@@ -39,6 +43,7 @@ impl Image {
             })
             .collect();
 
+
             let image = egui::ColorImage {
                 size: [self.logical_width, self.logical_height],
                 source_size: egui::vec2(
@@ -48,15 +53,22 @@ impl Image {
                 pixels,
             };
 
+        let texture_options = egui::TextureOptions {
+            magnification: egui::TextureFilter::Nearest,
+            minification: egui::TextureFilter::Nearest,
+            wrap_mode: egui::TextureWrapMode::ClampToEdge,
+            mipmap_mode: None,
+        };
+
         match &mut self.texture {
             Some(texture) => {
-                texture.set(image, TextureOptions::NEAREST);
+                texture.set(image, texture_options);
             }
             None => {
                 self.texture = Some(ui.ctx().load_texture(
                     "main-map",
                     image,
-                    TextureOptions::NEAREST,
+                    texture_options,
                 ));
             }
         }
@@ -87,17 +99,59 @@ impl Image {
 
 
     pub fn show_texture(&mut self, ui: &mut egui::Ui) {
-
-        if self.dirty{
+        if self.dirty {
             self.dirty = false;
             self.send_texture_to_gpu_internal(ui);
         }
 
         if let Some(texture) = &self.texture {
-            ui.image((
-                texture.id(),
-                egui::vec2(self.visual_width as f32, self.visual_height as f32),
-            ));
+            let display_size = egui::vec2(
+                self.visual_width as f32,
+                self.visual_height as f32,
+            );
+
+            let uv_min = egui::pos2(
+            (self.zoom_data.1 - (self.zoom_data.0 / 2.0)) as f32,
+            (self.zoom_data.2 - (self.zoom_data.0 / 2.0)) as f32);
+
+            let uv_max = egui::pos2(
+            (self.zoom_data.1 + (self.zoom_data.0 / 2.0)) as f32,
+            (self.zoom_data.2 + (self.zoom_data.0 / 2.0)) as f32);
+
+            let uv = egui::Rect::from_min_max(
+                uv_min,
+                uv_max,
+            );
+
+            let response = ui.add(
+                egui::Image::new((texture.id(), display_size))
+                    .uv(uv),
+            );
+
+            if let Some(mouse_pos) = response.hover_pos() {
+                let local = mouse_pos - response.rect.min;
+                
+                // Normalize mouse position within displayed image (0.0 - 1.0).
+                let normalized_x = local.x / display_size.x;
+                let normalized_y = local.y / display_size.y;
+
+                // Map normalized coordinates into the UV range.
+                let uv_x = uv_min.x + normalized_x * (uv_max.x - uv_min.x);
+                let uv_y = uv_min.y + normalized_y * (uv_max.y - uv_min.y);
+
+                // Convert UV coordinates into logical image coordinates.
+                let x = (uv_x * self.logical_width as f32) as usize;
+                let y = (uv_y * self.logical_height as f32) as usize;
+
+                self.hover_pos = Some((
+                    x.min(self.logical_width - 1),
+                    y.min(self.logical_height - 1),
+                ));
+
+                self.hover_pos = Some((x, y));
+            } else {
+                self.hover_pos = None;
+            }
         }
     }
 }
@@ -111,6 +165,8 @@ pub struct Images{
     pub c_map: Image,
     pub e_map: Image,
     pub w_map: Image,
+
+    zoom_data: (f64, f64, f64)
 }
 
 impl Images {
@@ -123,6 +179,7 @@ impl Images {
         logical_height: usize,
     ) -> Self {
         Self {
+            zoom_data: (1.0, 0.5, 0.5),
             main_map: Image::new(
                 visual_width_main,
                 visual_height_main,
@@ -165,5 +222,21 @@ impl Images {
                 logical_height,
             ),
         }
+    }
+
+
+    pub fn get_zoom_data(&self) -> (f64, f64, f64) {
+        self.zoom_data
+    }
+
+    pub fn set_zoom_data(&mut self, data: (f64, f64, f64) ){
+        self.zoom_data = data;
+        self.main_map.zoom_data = self.zoom_data;
+        self.t_map.zoom_data = self.zoom_data;
+        self.h_map.zoom_data = self.zoom_data;
+        self.c_map.zoom_data = self.zoom_data;
+        self.e_map.zoom_data = self.zoom_data;
+        self.w_map.zoom_data = self.zoom_data;
+
     }
 }

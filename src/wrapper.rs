@@ -118,7 +118,7 @@ impl MapGenerator{
 
         (0..num_threads).into_par_iter().for_each(|thread_no| {
             get_biome_colour_square_parallel(
-                8500081009970950196,
+                6680158985856009126,
                 -(self.width/2),
                 -(self.height/2),
                 self.width,
