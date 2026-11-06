@@ -1248,9 +1248,37 @@ void sampleNoiseParameters(BiomeNoise *bn, int x, int z, float np_param[4]) {
     double px = x + sampleDoublePerlin(&bn->climate[NP_SHIFT], x, 0, z) * 4.0;
     double pz = z + sampleDoublePerlin(&bn->climate[NP_SHIFT], z, x, 0) * 4.0;
 
-    float c = (float)sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
-    float e = (float)sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
-    float w = (float)sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+    int shiftedX = (int)(px + (imgLength / 2.0));
+    int shiftedZ = (int)(pz + (imgHeight / 2.0));
+
+    bool inImage = shiftedX >= 0 && shiftedX < imgLength && shiftedZ >= 0 && shiftedZ < imgHeight;
+    size_t pos = pixelPos(shiftedX, shiftedZ);
+
+    float c, e, w;
+
+    if (writeMode && inImage){
+        c = sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
+        e = sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
+        w = sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+
+        size_t pos = pixelPos(shiftedX, shiftedZ);
+        
+        p_c[pos] = floatToU16(c);
+        p_e[pos] = floatToU16(e);
+        p_w[pos] = floatToU16(w);
+    }
+    else if (inImage){
+
+        c = u16ToFloat(p_c[pos]);
+        e = u16ToFloat(p_e[pos]);
+        w = u16ToFloat(p_w[pos]);
+
+    }
+    else{
+        c = sampleDoublePerlin(&bn->climate[NP_CONTINENTALNESS], px, 0, pz);
+        e = sampleDoublePerlin(&bn->climate[NP_EROSION], px, 0, pz);
+        w = sampleDoublePerlin(&bn->climate[NP_WEIRDNESS], px, 0, pz);
+    }
 
     np_param[0] = c;
     np_param[1] = e;

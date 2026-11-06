@@ -231,6 +231,11 @@ void c_set_global_main_map(uint32_t* ptr){
     p_main_map = ptr;
 }
 
+
+void c_set_global_height_map(uint8_t* ptr){
+    p_height_map = ptr;
+}
+
 void c_set_global_noise_maps(uint16_t* _p_t, uint16_t* _p_h, uint16_t* _p_c, uint16_t* _p_e, uint16_t* _p_w){
     p_t = _p_t;
     p_h = _p_h;
@@ -240,7 +245,6 @@ void c_set_global_noise_maps(uint16_t* _p_t, uint16_t* _p_h, uint16_t* _p_c, uin
 
 }
 
-// Thread No's MUST be between 0 and num_threads - 1 (Optimised with an LLM - TODO: review correctness)
 void c_get_biome_colour_square_parallel(
     int64_t seed,
     int start_x,
@@ -262,66 +266,159 @@ void c_get_biome_colour_square_parallel(
     setupGenerator(&g, MC_26_3, 0);
     applySeed(&g, DIM_OVERWORLD, seed);
 
-    /*
-     * Find a grid that is as close to square as possible.
-     *
-     * For example:
-     *   24 threads -> 4 x 6
-     *   16 threads -> 4 x 4
-     *   12 threads -> 3 x 4
-     *    8 threads -> 2 x 4
-     */
-    int columns = 1;
-    int rows = num_threads;
 
-    for (int i = 1; i * i <= num_threads; i++)
+    SurfaceNoise sn;
+    initSurfaceNoise(&sn, DIM_OVERWORLD, seed);
+
+    // Assign this thread its horizontal strip.
+    int z0 = start_z + (thread_no * height) / num_threads;
+    int z1 = start_z + ((thread_no + 1) * height) / num_threads;
+
+    int thread_height = z1 - z0;
+
+    if (thread_height == 0 || length <= 0)
+        return;
+
+    // Generate the entire rectangle in one call.
+    Range r = {
+        4,
+        start_x,
+        z0,
+        length,
+        thread_height,
+        320,
+        1
+    };
+
+    int *ids = allocCache(&g, r);
+
+    if (!ids)
     {
-        if (num_threads % i == 0)
+        fprintf(stderr, "Failed to allocate biome cache\n");
+        abort();
+    }
+
+    int result = genBiomes(&g, ids, r);
+
+    if (result == 0)
+    {
+        for (int z = 0; z < thread_height; z++)
         {
-            rows = i;
-            columns = num_threads / i;
+            for (int x = 0; x < length; x++)
+            {
+                int index = z * length + x;
+
+                int world_x = start_x + x;
+                int world_z = z0 + z;
+
+                p_main_map[(uint64_t)z * length + (uint64_t)x
+                        + (uint64_t)(z0 - start_z) * length] =
+                    c_get_biome_colour(ids[index]);
+
+
+                float height;
+                int result = mapApproxHeight(
+                    &height,
+                    NULL,
+                    &g,
+                    &sn,
+                    world_x, world_z, // X, Z
+                    1, 1  // Width, height
+                );
+
+                if (result != 0)
+                {
+                    height = 0.0f;
+                }
+
+                height = fmaxf(0.0f, fminf(height, 255.0f));
+
+                uint8_t grayscale = (uint8_t)height;
+
+                p_height_map[(uint64_t)z * length + (uint64_t)x
+                        + (uint64_t)(z0 - start_z) * length] =
+                    grayscale;
+
+                // Your per-pixel operation here:
+                // world_x, world_z
+            }
         }
     }
 
-    /*
-     * thread_no identifies a rectangle in row-major order.
-     *
-     * Example with 24:
-     *
-     *  0   1   2   3   4   5
-     *  6   7   8   9  10  11
-     * 12  13  14  15  16  17
-     * 18  19  20  21  22  23
-     */
+    free(ids);
+}
 
-    int row = thread_no / columns;
-    int column = thread_no % columns;
+/*void c_get_biome_colour_square_parallel(
+    int64_t seed,
+    int start_x,
+    int start_z,
+    int length,
+    int height,
+    int num_threads,
+    int thread_no)
+{
+    if (num_threads <= 0 ||
+        thread_no < 0 ||
+        thread_no >= num_threads)
+    {
+        fprintf(stderr, "Invalid thread configuration\n");
+        abort();
+    }
 
-    /*
-     * Calculate this rectangle's bounds.
-     *
-     * Using this formula distributes remainder pixels naturally.
-     */
-    int x0 = start_x + (column * length) / columns;
-    int x1 = start_x + ((column + 1) * length) / columns;
+    Generator g;
+    setupGenerator(&g, MC_26_3, 0);
+    applySeed(&g, DIM_OVERWORLD, seed);
 
-    int z0 = start_z + (row * height) / rows;
-    int z1 = start_z + ((row + 1) * height) / rows;
+    SurfaceNoise sn;
+    initSurfaceNoise(&sn, DIM_OVERWORLD, seed);
+
+    // Divide Z into horizontal strips.
+    int z0 = start_z + (thread_no * height) / num_threads;
+    int z1 = start_z + ((thread_no + 1) * height) / num_threads;
 
     for (int z = z0; z < z1; z++)
     {
-        for (int x = x0; x < x1; x++)
+        int local_z = z - start_z;
+
+        // Entire X range belongs to this thread.
+        uint64_t row_index = (uint64_t)local_z * length;
+
+        for (int x = start_x; x < start_x + length; x++)
         {
             int local_x = x - start_x;
-            int local_z = z - start_z;
 
-            uint64_t index =
-                (uint64_t)local_z * (uint64_t)length +
-                (uint64_t)local_x;
+            uint64_t index = row_index + local_x;
 
-            int biomeID = getBiomeAt(&g, 4, x, 320, z);
+            int biomeID = getBiomeAt(&g, 4, x, 320, z);*/
 
-            p_main_map[index] = c_get_biome_colour(biomeID);
+            /*float height;
+            int result = mapApproxHeight(
+                &height,
+                NULL,
+                &g,
+                &sn,
+                x, z, // X, Z
+                1, 1  // Width, height
+            );
+
+
+            if (result != 0)
+            {
+                height = 0.0f;
+            }
+
+
+            height = fmaxf(0.0f, fminf(height, 255.0f));
+
+            uint32_t grayscale = (uint32_t)height;
+
+            uint32_t colour =
+                (grayscale << 24) |
+                (grayscale << 16) |
+                (grayscale << 8)  |
+                0xFF;*/
+
+            /*p_main_map[index] = c_get_biome_colour(biomeID);
         }
     }
-}
+}*/

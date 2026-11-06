@@ -8,6 +8,7 @@ extern int imgLength;
 extern int imgHeight;
 
 extern uint32_t* p_main_map;
+extern uint8_t* p_height_map;
 extern uint16_t* p_t;
 extern uint16_t* p_h;
 extern uint16_t* p_c;

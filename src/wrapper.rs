@@ -17,6 +17,8 @@ unsafe extern "C" {
 
     fn c_set_global_main_map(ptr: *mut u32);
 
+    fn c_set_global_height_map(ptr: *mut u8);
+
     fn c_set_global_noise_maps(
         _p_t: *mut u16,
         _p_h: *mut u16,
@@ -59,6 +61,12 @@ fn set_global_main_map(ptr: *mut u32){
 }
 
 /// WARNING: Only Call This When No Other C ABI calls are running!
+fn set_global_height_map(ptr: *mut u8){
+    unsafe {c_set_global_height_map(ptr)}
+}
+
+
+/// WARNING: Only Call This When No Other C ABI calls are running!
 fn set_global_noise_maps(
         p_t: *mut u16,
         p_h: *mut u16,
@@ -73,6 +81,7 @@ pub struct MapGenerator{
     pub width: i32,
     pub height: i32,
     pub main_map: Vec<u32>,
+    pub height_map: Vec<u8>,
     pub t_map: Vec<u16>,
     pub h_map: Vec<u16>,
     pub c_map: Vec<u16>,
@@ -89,6 +98,7 @@ impl MapGenerator{
             width: width,
             height: height,
             main_map: vec![0x000000FF; size],
+            height_map: vec![0x00; size],
             t_map: vec![0x0000; size],
             h_map: vec![0x0000; size],
             c_map: vec![0x0000; size],
@@ -107,6 +117,7 @@ impl MapGenerator{
         assert!(self.height > 0, "Height must be positive");
         assert!(num_threads > 0, "Thread count must be positive");
 
+        set_global_height_map(self.height_map.as_mut_ptr());
         set_global_main_map(self.main_map.as_mut_ptr());
         set_global_noise_maps(
             self.t_map.as_mut_ptr(), 
@@ -118,7 +129,7 @@ impl MapGenerator{
 
         (0..num_threads).into_par_iter().for_each(|thread_no| {
             get_biome_colour_square_parallel(
-                6680158985856009126,
+                5674997078289778296,
                 -(self.width/2),
                 -(self.height/2),
                 self.width,
