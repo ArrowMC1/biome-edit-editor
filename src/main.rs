@@ -4,17 +4,21 @@
 static IMG_SIZE: i32 = 2048;
 
 use eframe::{NativeOptions, egui};
-use egui_dock::tab_viewer::OnCloseResponse;
 use egui_dock::{DockArea, DockState, NodeIndex, Style};
 
+use crate::image_util::{create_shaded_relief_map};
 use crate::wrapper::*;
+use crate::image::Images;
+
+use crate::ui::TabViewer;
 
 use std::time::Instant;
 
 mod wrapper;
 mod image;
+mod image_util;
+mod ui;
 
-use image::Images;
 
 fn main() -> eframe::Result<()> {
     let options = NativeOptions {
@@ -31,119 +35,28 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-struct TabViewer<'a> {
-    images: &'a mut Images,
-    map_generator: &'a mut MapGenerator,
-}
-
-impl egui_dock::TabViewer for TabViewer<'_> {
-    type Tab = String;
-
-    fn id(&mut self, tab: &mut Self::Tab) -> egui::Id {
-        egui::Id::new(tab)
-    }
-
-    fn title(&mut self, tab: &mut Self::Tab) -> egui::WidgetText {
-        tab.as_str().into()
-    }
-
-
-    fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
-
-
-
-
-        if tab == "Main" || tab == "Heightmap" {
-            let scroll = ui.input(|i| i.smooth_scroll_delta) * 2.0;
-
-            if tab == "Main"{
-                self.images.main_map.handle_zooming(scroll.y);
-                self.images.main_map.show_texture(ui);
-                self.images.set_zoom_data(self.images.main_map.zoom_data);
-            }
-            else {
-                self.images.height_map.handle_zooming(scroll.y);
-                self.images.height_map.show_texture(ui);
-                self.images.set_zoom_data(self.images.height_map.zoom_data);
-            }
-
-            if let Some((x, z)) = self.images.main_map.hover_pos {
-
-                let uv: (f32, f32) = self.images.main_map.mouse_pos_uv.unwrap();
-
-                let in_game_coords: (i32, i32) = (
-                    (x - IMG_SIZE as f32 / 2.0 * 4.0) as i32,
-                    (z - IMG_SIZE as f32 / 2.0 * 4.0) as i32,
-                );   
-
-                ui.label(format!("Pixel: ({}, {})", x as i32, z as i32));
-                ui.label(format!("UV Coords: ({}, {})", uv.0, uv.1));
-
-                ui.label(format!(
-                    "In Game Coords: ({}, {})",
-                    in_game_coords.0,
-                    in_game_coords.1
-                ));   
-            }
-               
-            ui.heading("Settings:");
-
-            if ui.button("Regenerate").clicked(){
-                self.map_generator.gen_biomes_multithreaded(32);
-                self.images.main_map.copy_u32_color_data(&self.map_generator.main_map);
-                self.images.height_map.copy_u8_greyscale_data(&self.map_generator.height_map);
-                self.images.t_map.copy_u16_greyscale_data(&self.map_generator.t_map);
-                self.images.h_map.copy_u16_greyscale_data(&self.map_generator.h_map);
-                self.images.c_map.copy_u16_greyscale_data(&self.map_generator.c_map);
-                self.images.e_map.copy_u16_greyscale_data(&self.map_generator.e_map);
-                self.images.w_map.copy_u16_greyscale_data(&self.map_generator.w_map);
-            }         
-        }
-
-        else if tab == "Temperature" {
-            self.images.t_map.show_texture(ui);
-        } 
-        else if tab == "Humidity" {
-            self.images.h_map.show_texture(ui);
-        } 
-        else if tab == "Continental" {
-            self.images.c_map.show_texture(ui);
-        } 
-        else if tab == "Erosion" {
-            self.images.e_map.show_texture(ui);
-        } 
-        else if tab == "Weirdness" {
-            self.images.w_map.show_texture(ui);
-        } 
-        else {
-            ui.label(format!("Content of {tab}"));
-        }
-    }
-
-    fn on_close(&mut self, _tab: &mut Self::Tab) -> OnCloseResponse {
-        OnCloseResponse::Ignore
-    }
-}
-
 struct MyApp {
     tree: DockState<String>,
     images: Images,
-    map_generator: MapGenerator
+    map_generator: MapGenerator,
+    hover_pos: Option<(usize, usize)>,
 }
 
 impl Default for MyApp {
     fn default() -> Self {
-        let mut tree = DockState::new(vec!["Main".to_owned(), "Heightmap".to_owned(), "Shaded Relief".to_owned()]);
+        let mut tree = DockState::new(vec!["Main".to_owned(), "Shaded Relief".to_owned(), "Heightmap".to_owned()]);
 
         let mut images: Images = Images::new(800, 800, 300, 300, IMG_SIZE as usize, IMG_SIZE as usize);
 
         let mut map_generator = MapGenerator::new(IMG_SIZE, IMG_SIZE);
 
+        let mut hover_pos = None;
+
         let start = Instant::now();
 
         set_global_write_mode(true);
         set_global_shift_noise(false);
-        map_generator.gen_biomes_multithreaded(32);
+        map_generator.gen_biomes_multithreaded(1024);
         set_global_shift_noise(true);
         set_global_write_mode(false);
 
@@ -151,9 +64,9 @@ impl Default for MyApp {
         println!("Biome Generation Took: {:?}ms", duration.as_millis());
 
 
-        /*for value in &mut map_generator.e_map {
-            *value = value.saturating_div(2);
-        }*/
+        for value in &mut map_generator.h_map {
+            //*value = float_to_u16(u16_to_float(*value) - 0.5);
+        }
 
         images.main_map.copy_u32_color_data(&map_generator.main_map);
         images.height_map.copy_u8_greyscale_data(&map_generator.height_map);
@@ -162,6 +75,14 @@ impl Default for MyApp {
         images.c_map.copy_u16_greyscale_data(&map_generator.c_map);
         images.e_map.copy_u16_greyscale_data(&map_generator.e_map);
         images.w_map.copy_u16_greyscale_data(&map_generator.w_map);
+
+        create_shaded_relief_map(
+            &mut images.shaded_relief_map, 
+            &map_generator.main_map, 
+            &map_generator.height_map, 
+            IMG_SIZE, IMG_SIZE);
+        
+        images.shaded_relief_map.send_texture_to_gpu();
 
 
 
@@ -196,7 +117,7 @@ impl Default for MyApp {
             .main_surface_mut()
             .split_below(t4, 1.0/2.0, vec!["Peaks & Valleys".to_owned()]);
 
-        Self {tree, images, map_generator}
+        Self {tree, images, map_generator, hover_pos}
 
     }
 }
@@ -210,6 +131,10 @@ impl eframe::App for MyApp {
             .draggable_tabs(false)
             .show_leaf_close_all_buttons(false)
             .show_leaf_collapse_buttons(false)
-            .show_inside(ui, &mut TabViewer { images: &mut self.images, map_generator: &mut self.map_generator });
+            .show_inside(ui, &mut TabViewer { 
+                images: &mut self.images, 
+                map_generator: &mut self.map_generator, 
+                hover_pos: &mut self.hover_pos,
+            });
     }
 }

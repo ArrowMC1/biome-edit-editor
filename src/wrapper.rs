@@ -109,6 +109,61 @@ impl MapGenerator{
     }
 
 
+    pub fn reduce_continental_circle(
+        &mut self,
+        center_x: usize,
+        center_z: usize,
+        radius: f32,
+        strength: f32,
+        falloff: f32,
+    ) {
+        let width = self.width as usize;
+        let height = self.height as usize;
+
+        if width == 0 || height == 0 || radius <= 0.0 {
+            return;
+        }
+
+        let min_x = (center_x as f32 - radius).max(0.0) as usize;
+        let max_x = ((center_x as f32 + radius) as usize).min(width - 1);
+
+        let min_z = (center_z as f32 - radius).max(0.0) as usize;
+        let max_z = ((center_z as f32 + radius) as usize).min(height - 1);
+
+        let radius_squared = radius * radius;
+
+        for z in min_z..=max_z {
+            for x in min_x..=max_x {
+
+                // Bounds checking
+                let index = z * width + x;
+
+                if index >= self.c_map.len() {
+                    continue;
+                }
+
+                let dx = x as f32 - center_x as f32;
+                let dz = z as f32 - center_z as f32;
+
+                let distance_squared = dx * dx + dz * dz;
+
+                if distance_squared > radius_squared {
+                    continue;
+                }
+
+                let normalized_distance = distance_squared.sqrt() / radius;
+
+                let effect = (1.0 - normalized_distance).powf(falloff);
+
+                let reduction = (strength.clamp(0.0, 1.0)
+                    * effect
+                    * u16::MAX as f32) as u16;
+
+                self.e_map[index] = self.e_map[index].saturating_sub(reduction);
+            }
+        }
+    }
+
     /// This Uses the the maps supplied by set_global_noise_maps and set_global_main_map.
     /// WARNING: if these are not set beforehand, this will cause a null pointer derefrence!
     pub fn gen_biomes_multithreaded(&mut self, num_threads: i32) {

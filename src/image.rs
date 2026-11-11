@@ -5,7 +5,7 @@ pub struct Image {
     visual_height: usize,
     pub logical_width: usize,
     pub logical_height: usize,
-    pixels: Vec<u32>,
+    pub pixels: Vec<u32>,
     texture: Option<TextureHandle>,
     dirty: bool,
     pub hover_pos: Option<(f32, f32)>,
@@ -26,7 +26,7 @@ impl Image {
             dirty: false,
             hover_pos: None,
             mouse_pos_uv: None,
-            zoom_data: (1.0, 0.5, 0.5),
+            zoom_data: (1.0, 0.5, 0.5)
         }
     }
 
@@ -163,7 +163,8 @@ impl Image {
 
             let response = ui.add(
                 egui::Image::new((texture.id(), display_size))
-                    .uv(uv),
+                    .uv(uv)
+                    .sense(egui::Sense::click_and_drag()),
             );
 
             if let Some(mouse_pos) = response.hover_pos() {
@@ -191,8 +192,94 @@ impl Image {
         }
     }
 
+    fn logical_to_subwindow_coords(&self, x: usize, z: usize, ui: &egui::Ui) -> egui::Pos2{
+        let display_size = egui::vec2(
+            self.visual_width as f32,
+            self.visual_height as f32,
+        );
+
+        let uv_min = egui::vec2(
+            self.zoom_data.1 - self.zoom_data.0 / 2.0,
+            self.zoom_data.2 - self.zoom_data.0 / 2.0,
+        );
+
+        let uv_max = egui::vec2(
+            self.zoom_data.1 + self.zoom_data.0 / 2.0,
+            self.zoom_data.2 + self.zoom_data.0 / 2.0,
+        );
+
+        let uv_pos = egui::vec2(
+            (x as f32 + 0.5) / self.logical_width as f32,
+            (z as f32 + 0.5) / self.logical_height as f32,
+        );
+
+        let normalized = egui::vec2(
+            (uv_pos.x - uv_min.x) / (uv_max.x - uv_min.x),
+            (uv_pos.y - uv_min.y) / (uv_max.y - uv_min.y),
+        );
+
+        ui.min_rect().min + normalized * display_size
+    }
+
+
+    fn logical_to_visual_size(&self, n: f32) -> f32{
+        n / self.zoom_data.0 / (self.logical_height as f32 / self.visual_height as f32)
+    }
+
+
+    pub fn overlay_dot(&self, ui: &mut egui::Ui, x: usize, z: usize) {
+
+        let rect = egui::Rect::from_min_size(
+            ui.min_rect().min,
+            egui::vec2(self.visual_width as f32, self.visual_height as f32),
+        );
+
+        ui.painter().with_clip_rect(rect).circle_filled(
+            self.logical_to_subwindow_coords(x, z, ui),
+            1.5,
+            egui::Color32::RED,
+        );
+    }
+
+
+    pub fn overlay_hollow_circle(&self, ui: &mut egui::Ui, x: usize, z: usize) {
+
+        let rect = egui::Rect::from_min_size(
+            ui.min_rect().min,
+            egui::vec2(self.visual_width as f32, self.visual_height as f32),
+        );
+
+        ui.painter().with_clip_rect(rect).circle_stroke(
+            self.logical_to_subwindow_coords(x, z, ui), 
+            self.logical_to_visual_size(100.0),
+            egui::Stroke::new(
+                2.0,
+                egui::Color32::RED,
+            ),
+        );
+    }
+
+    pub fn overlay_pixel(&self, ui: &mut egui::Ui, x: usize, z: usize) {
+        let rect = egui::Rect::from_min_size(
+            ui.min_rect().min,
+            egui::vec2(self.visual_width as f32, self.visual_height as f32),
+        );
+
+        ui.painter().with_clip_rect(rect).rect_filled(
+            egui::Rect::from_center_size(
+                self.logical_to_subwindow_coords(x, z, ui),
+                egui::vec2(
+                    self.logical_to_visual_size(1.0).max(2.0),
+                    self.logical_to_visual_size(1.0).max(2.0)
+                    ), // Width, height
+            ),
+            0.0, // Corner rounding
+            egui::Color32::RED,
+        );
+    }
+
     pub fn handle_zooming(&mut self, scroll_y: f32){
-        if let Some((_x, _z)) = self.hover_pos {
+        if self.hover_pos.is_some() {
 
             const MIN_ZOOM: f32 = 0.001;
             const MAX_ZOOM: f32 = 2.0;
@@ -222,6 +309,7 @@ impl Image {
 
 pub struct Images{
     pub main_map: Image,
+    pub shaded_relief_map: Image,
     pub height_map: Image,
 
     pub t_map: Image,
@@ -248,6 +336,12 @@ impl Images {
                 logical_height,
             ),
 
+            shaded_relief_map: Image::new(
+                visual_width_main,
+                visual_height_main,
+                logical_width,
+                logical_height,
+            ),
 
             height_map: Image::new(
                 visual_width_main,
@@ -296,6 +390,7 @@ impl Images {
     pub fn set_zoom_data(&mut self, data: (f32, f32, f32) ){
         self.main_map.zoom_data = data;
         self.height_map.zoom_data = data;
+        self.shaded_relief_map.zoom_data = data;
 
         self.t_map.zoom_data = data;
         self.h_map.zoom_data = data;

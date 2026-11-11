@@ -16,7 +16,7 @@
 } Color;*/
 
 
-uint32_t c_get_biome_colour_old(int biomeID)
+uint32_t c_get_biome_colour_cubitect(int biomeID)
 {
     switch (biomeID)
     {
@@ -113,7 +113,7 @@ uint32_t c_get_biome_colour_old(int biomeID)
     }
 }
 
-uint32_t c_get_biome_colour(int biomeID)
+uint32_t c_get_biome_colour_amidst(int biomeID)
 {
     switch (biomeID)
     {
@@ -313,7 +313,7 @@ void c_get_biome_colour_square_parallel(
 
                 p_main_map[(uint64_t)z * length + (uint64_t)x
                         + (uint64_t)(z0 - start_z) * length] =
-                    c_get_biome_colour(ids[index]);
+                    c_get_biome_colour_amidst(ids[index]);
 
 
                 float height;
@@ -347,78 +347,3 @@ void c_get_biome_colour_square_parallel(
 
     free(ids);
 }
-
-/*void c_get_biome_colour_square_parallel(
-    int64_t seed,
-    int start_x,
-    int start_z,
-    int length,
-    int height,
-    int num_threads,
-    int thread_no)
-{
-    if (num_threads <= 0 ||
-        thread_no < 0 ||
-        thread_no >= num_threads)
-    {
-        fprintf(stderr, "Invalid thread configuration\n");
-        abort();
-    }
-
-    Generator g;
-    setupGenerator(&g, MC_26_3, 0);
-    applySeed(&g, DIM_OVERWORLD, seed);
-
-    SurfaceNoise sn;
-    initSurfaceNoise(&sn, DIM_OVERWORLD, seed);
-
-    // Divide Z into horizontal strips.
-    int z0 = start_z + (thread_no * height) / num_threads;
-    int z1 = start_z + ((thread_no + 1) * height) / num_threads;
-
-    for (int z = z0; z < z1; z++)
-    {
-        int local_z = z - start_z;
-
-        // Entire X range belongs to this thread.
-        uint64_t row_index = (uint64_t)local_z * length;
-
-        for (int x = start_x; x < start_x + length; x++)
-        {
-            int local_x = x - start_x;
-
-            uint64_t index = row_index + local_x;
-
-            int biomeID = getBiomeAt(&g, 4, x, 320, z);*/
-
-            /*float height;
-            int result = mapApproxHeight(
-                &height,
-                NULL,
-                &g,
-                &sn,
-                x, z, // X, Z
-                1, 1  // Width, height
-            );
-
-
-            if (result != 0)
-            {
-                height = 0.0f;
-            }
-
-
-            height = fmaxf(0.0f, fminf(height, 255.0f));
-
-            uint32_t grayscale = (uint32_t)height;
-
-            uint32_t colour =
-                (grayscale << 24) |
-                (grayscale << 16) |
-                (grayscale << 8)  |
-                0xFF;*/
-
-            /*p_main_map[index] = c_get_biome_colour(biomeID);
-        }
-    }
-}*/
