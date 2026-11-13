@@ -1,13 +1,10 @@
 use egui_dock::tab_viewer::OnCloseResponse;
-
-use crate::wrapper::MapGenerator;
-use crate::image_util::{create_shaded_relief_map, u16_to_float};
-use crate::image::Images;
+use crate::appstate::{AppState};
+use crate::enums::{MainMap};
+use crate::image_util::{u16_to_float};
 
 pub struct TabViewer<'a> {
-    pub images: &'a mut Images,
-    pub map_generator: &'a mut MapGenerator,
-    pub hover_pos: &'a mut Option<(usize, usize)>,
+    pub appstate: &'a mut AppState,
 }
                 
 impl egui_dock::TabViewer for TabViewer<'_> {
@@ -23,49 +20,84 @@ impl egui_dock::TabViewer for TabViewer<'_> {
 
     fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
 
+        let aps = &mut self.appstate;
+
         if tab == "Main" || tab == "Heightmap" || tab == "Shaded Relief" {
-            let active_map = if tab == "Main" {
-                &mut self.images.main_map
+
+            aps.active_map = if tab == "Main" {
+                MainMap::Main
             } else if tab == "Shaded Relief" {
-                &mut self.images.shaded_relief_map
+                MainMap::ShadedRelief
             } else {
-                &mut self.images.height_map
+                MainMap::Heightmap
             };
 
 
-            if active_map.hover_pos.is_some() {
-                let (x, z) = active_map.hover_pos.unwrap();
-                let uv: (f32, f32) = active_map.mouse_pos_uv.unwrap();
+            if aps.active_map_mut().hover_pos.is_some() {
+                let (x, z) = aps.active_map_mut().hover_pos.unwrap();
+                let uv: (f32, f32) = aps.active_map_mut().mouse_pos_uv.unwrap();
 
                 if (0.0..=1.0).contains(&uv.0) && (0.0..=1.0).contains(&uv.1) {
-                    *self.hover_pos = Some((x as usize, z as usize));
+                    aps.hover_pos = Some((x as usize, z as usize));
                 } else {
-                    *self.hover_pos = None;
+                    aps.hover_pos = None;
                 }
             }
             else {
-                *self.hover_pos = None;
+                aps.hover_pos = None;
             }
 
             let scroll = ui.input(|i| i.smooth_scroll_delta) * 2.0;
 
-            active_map.handle_zooming(scroll.y);
-            active_map.show_texture(ui);
+            aps.active_map_mut().handle_zooming(scroll.y);
+            aps.active_map_mut().show_texture(ui);
 
-            if let Some((x, z)) = *self.hover_pos{
-                active_map.overlay_hollow_circle(ui, x, z);
+            if let Some((x, z)) = aps.hover_pos {
+                aps.active_map_mut().overlay_hollow_circle(x, z);
+                aps.active_noisemap_img_mut().overlay_hollow_circle(x, z);
 
-                let mouse_pressed = ui.input(|i| i.pointer.button_down(egui::PointerButton::Primary));
 
-                if mouse_pressed{
-                    self.map_generator.reduce_continental_circle(x, z, 100.0, 0.01, 1.0);
-                    self.images.e_map.copy_u16_greyscale_data(&self.map_generator.e_map);
+                // On left click will increase noisemap values
+                // On right click will decrease noisemap values
+                // On both clicked simultaenously will do nothing
+
+                let mut draw_multiplier = 0;
+
+                if ui.input(|i| i.pointer.button_down(egui::PointerButton::Primary)) {
+                    draw_multiplier = 1;
+                }
+
+                if ui.input(|i| i.pointer.button_down(egui::PointerButton::Secondary)) {
+                    draw_multiplier -= 1;
+                }
+
+                if draw_multiplier != 0 {
+                    let radius: usize = 100;
+                    let map_size = crate::IMG_SIZE as usize;
+
+
+                    aps.map_generator.modify_noise_data_in_circle(
+                        aps.active_noise_map, x, z, radius as f32, 0.01 * draw_multiplier as f32, 1.0
+                    );
+
+                    let start_x = x.saturating_sub(radius);
+                    let start_z = z.saturating_sub(radius);
+
+                    let end_x = x.saturating_add(radius).min(map_size);
+                    let end_z = z.saturating_add(radius).min(map_size);
+
+                    let width = end_x - start_x;
+                    let height = end_z - start_z;
+
+                    let (img, data) = aps.active_noisemap_dual_refs();
+
+                    img.copy_u16_greyscale_data(data, start_x, start_z, width, height);
                 }
             }
 
-            let zoom_data = active_map.zoom_data;
+            let zoom_data = aps.active_map_mut().zoom_data;
 
-            if let Some((x, z)) = *self.hover_pos{
+            if let Some((x, z)) = aps.hover_pos{
                 let in_game_coords: (i32, i32) = (
                     ((x as f32 - crate::IMG_SIZE as f32 / 2.0) * 4.0) as i32,
                     ((z as f32 - crate::IMG_SIZE as f32 / 2.0) * 4.0) as i32,
@@ -80,79 +112,61 @@ impl egui_dock::TabViewer for TabViewer<'_> {
                 ));   
 
 
-                if let Some((x_int, z_int)) = *self.hover_pos{
+                if let Some((x_int, z_int)) = aps.hover_pos{
                     ui.label(format!(
                         "Terrain Height: {}",
-                        self.map_generator.height_map[z_int * crate::IMG_SIZE as usize + x_int]
+                        aps.map_generator.height_map[z_int * crate::IMG_SIZE as usize + x_int]
                     ));   
                 }
 
             }
 
-            self.images.set_zoom_data(zoom_data);
+            aps.images.set_zoom_data(zoom_data);
                
             ui.heading("Settings:");
 
-            
-
             if ui.button("Regenerate").clicked(){
-                self.map_generator.gen_biomes_multithreaded(1024);
-                self.images.main_map.copy_u32_color_data(&self.map_generator.main_map);
-                self.images.height_map.copy_u8_greyscale_data(&self.map_generator.height_map);
-                self.images.t_map.copy_u16_greyscale_data(&self.map_generator.t_map);
-                self.images.h_map.copy_u16_greyscale_data(&self.map_generator.h_map);
-                self.images.c_map.copy_u16_greyscale_data(&self.map_generator.c_map);
-                self.images.e_map.copy_u16_greyscale_data(&self.map_generator.e_map);
-                self.images.w_map.copy_u16_greyscale_data(&self.map_generator.w_map);
-
-                create_shaded_relief_map(
-                &mut self.images.shaded_relief_map, 
-                &self.map_generator.main_map, 
-                &self.map_generator.height_map, 
-                crate::IMG_SIZE, crate::IMG_SIZE);
-        
-                self.images.shaded_relief_map.send_texture_to_gpu();
-
-            }         
+                aps.update_maps();
+            } 
 
             if ui.button("Reset UV").clicked(){
-                self.images.set_zoom_data((1.0, 0.5, 0.5));
+                aps.images.set_zoom_data((1.0, 0.5, 0.5));
             }      
         }
 
         else if tab == "Temperature" {
-            self.images.t_map.show_texture(ui);
-            if let Some((x, z)) = *self.hover_pos{
-                ui.label(format!("Val: {:.2}", u16_to_float(self.map_generator.t_map[z * crate::IMG_SIZE as usize + x])));
-                self.images.t_map.overlay_pixel(ui, x, z);
+            aps.images.t_map.show_texture(ui);
+            if let Some((x, z)) = aps.hover_pos{
+                ui.label(format!("Val: {:.2}", u16_to_float(aps.map_generator.t_map[z * crate::IMG_SIZE + x])));
+                aps.images.t_map.overlay_pixel(x, z);
             }
         } 
         else if tab == "Humidity" {
-            self.images.h_map.show_texture(ui);
-            if let Some((x, z)) = *self.hover_pos{
-                ui.label(format!("Val: {:.2}", u16_to_float(self.map_generator.h_map[z * crate::IMG_SIZE as usize + x])));
-                self.images.h_map.overlay_pixel(ui, x, z);
+            aps.images.h_map.show_texture(ui);
+            if let Some((x, z)) = aps.hover_pos{
+                ui.label(format!("Val: {:.2}", u16_to_float(aps.map_generator.h_map[z * crate::IMG_SIZE + x])));
+                aps.images.h_map.overlay_pixel(x, z);
             }
         } 
         else if tab == "Continental" {
-            self.images.c_map.show_texture(ui);
-            if let Some((x, z)) = *self.hover_pos{
-                ui.label(format!("Val: {:.2}", u16_to_float(self.map_generator.c_map[z * crate::IMG_SIZE as usize + x])));
-                self.images.c_map.overlay_pixel(ui, x, z);
+            aps.images.c_map.show_texture(ui);
+            if let Some((x, z)) = aps.hover_pos{
+                ui.label(format!("Val: {:.2}", u16_to_float(aps.map_generator.c_map[z * crate::IMG_SIZE + x])));
+                aps.images.c_map.overlay_pixel(x, z);
             }
         } 
         else if tab == "Erosion" {
-            self.images.e_map.show_texture(ui);
-            if let Some((x, z)) = *self.hover_pos{
-                ui.label(format!("Val: {:.2}", u16_to_float(self.map_generator.e_map[z * crate::IMG_SIZE as usize + x])));
-                self.images.e_map.overlay_pixel(ui, x, z);
+            aps.images.e_map.show_texture(ui);
+            if let Some((x, z)) = aps.hover_pos{
+                ui.label(format!("Val: {:.2}", u16_to_float(aps.map_generator.e_map[z * crate::IMG_SIZE + x])));
+                aps.images.e_map.overlay_pixel(x, z);
             }
         } 
         else if tab == "Weirdness" {
-            self.images.w_map.show_texture(ui);
-            if let Some((x, z)) = *self.hover_pos{
-                ui.label(format!("Val: {:.2}", u16_to_float(self.map_generator.w_map[z * crate::IMG_SIZE as usize + x])));
-                self.images.w_map.overlay_pixel(ui, x, z);
+            aps.images.w_map.show_texture(ui);
+            if let Some((x, z)) = aps.hover_pos{
+                ui.label(format!("Val: {:.2}", u16_to_float(aps.map_generator.w_map[z * crate::IMG_SIZE + x])));
+                aps.images.w_map.overlay_pixel(x, z);
             }
         } 
         else {

@@ -1,5 +1,7 @@
 use rayon::prelude::*;
 
+use crate::enums::NoiseMap;
+
 unsafe extern "C" {
     fn c_get_biome_colour_square_parallel(
         seed: i64,
@@ -78,8 +80,8 @@ fn set_global_noise_maps(
 
 
 pub struct MapGenerator{
-    pub width: i32,
-    pub height: i32,
+    pub width: usize,
+    pub height: usize,
     pub main_map: Vec<u32>,
     pub height_map: Vec<u8>,
     pub t_map: Vec<u16>,
@@ -91,8 +93,8 @@ pub struct MapGenerator{
 }
 
 impl MapGenerator{
-    pub fn new(width: i32, height: i32) -> Self{
-        let size: usize = (width * height) as usize;
+    pub fn new(width: usize, height: usize) -> Self{
+        let size = width * height;
 
         Self { 
             width: width,
@@ -108,9 +110,20 @@ impl MapGenerator{
          }
     }
 
+    /// Returns a mutable refrence to a noise maps data,
+    fn raw_noisemap_data_ref(&mut self, map: NoiseMap) -> &mut Vec<u16> {
+        match map {
+            NoiseMap::Temperature => &mut self.t_map,
+            NoiseMap::Humidity    => &mut self.h_map,
+            NoiseMap::Continental => &mut self.c_map,
+            NoiseMap::Erosion     => &mut self.e_map,
+            NoiseMap::Weirdness   => &mut self.w_map,
+        }
+    }
 
-    pub fn reduce_continental_circle(
+    pub fn modify_noise_data_in_circle(
         &mut self,
+        map: NoiseMap,
         center_x: usize,
         center_z: usize,
         radius: f32,
@@ -119,6 +132,8 @@ impl MapGenerator{
     ) {
         let width = self.width as usize;
         let height = self.height as usize;
+
+        let map_data = self.raw_noisemap_data_ref(map);
 
         if width == 0 || height == 0 || radius <= 0.0 {
             return;
@@ -138,7 +153,7 @@ impl MapGenerator{
                 // Bounds checking
                 let index = z * width + x;
 
-                if index >= self.c_map.len() {
+                if index >= map_data.len() {
                     continue;
                 }
 
@@ -155,11 +170,15 @@ impl MapGenerator{
 
                 let effect = (1.0 - normalized_distance).powf(falloff);
 
-                let reduction = (strength.clamp(0.0, 1.0)
-                    * effect
-                    * u16::MAX as f32) as u16;
+                let change = (strength.abs() * effect * u16::MAX as f32) as u16;
 
-                self.e_map[index] = self.e_map[index].saturating_sub(reduction);
+                if strength >= 0.0{
+                    map_data[index] = map_data[index].saturating_add(change);
+                }
+                else{
+                    map_data[index] = map_data[index].saturating_sub(change);
+                }
+
             }
         }
     }
@@ -185,13 +204,14 @@ impl MapGenerator{
         (0..num_threads).into_par_iter().for_each(|thread_no| {
             get_biome_colour_square_parallel(
                 5674997078289778296,
-                -(self.width/2),
-                -(self.height/2),
-                self.width,
-                self.height,
+                -(self.width as i32/2),
+                -(self.height as i32/2),
+                self.width as i32,
+                self.height as i32,
                 num_threads,
                 thread_no
             );
         });
     }
 }
+

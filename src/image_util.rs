@@ -8,8 +8,8 @@ pub fn create_shaded_relief_map(
     result_img: &mut Image,
     biome_map: &Vec<u32>,
     height_map: &Vec<u8>,
-    img_length: i32,
-    img_width: i32
+    img_length: usize,
+    img_width: usize
 ) {
     // ==============================
     // CONFIGURATION

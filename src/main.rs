@@ -1,14 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
 
-static IMG_SIZE: i32 = 2048;
+static IMG_SIZE: usize = 2048;
 
 use eframe::{NativeOptions, egui};
 use egui_dock::{DockArea, DockState, NodeIndex, Style};
 
-use crate::image_util::{create_shaded_relief_map};
-use crate::wrapper::*;
-use crate::image::Images;
+use crate::appstate::AppState;
 
 use crate::ui::TabViewer;
 
@@ -18,6 +16,8 @@ mod wrapper;
 mod image;
 mod image_util;
 mod ui;
+mod appstate;
+mod enums;
 
 
 fn main() -> eframe::Result<()> {
@@ -37,52 +37,19 @@ fn main() -> eframe::Result<()> {
 
 struct MyApp {
     tree: DockState<String>,
-    images: Images,
-    map_generator: MapGenerator,
-    hover_pos: Option<(usize, usize)>,
+    appstate: AppState
 }
 
 impl Default for MyApp {
     fn default() -> Self {
         let mut tree = DockState::new(vec!["Main".to_owned(), "Shaded Relief".to_owned(), "Heightmap".to_owned()]);
 
-        let mut images: Images = Images::new(800, 800, 300, 300, IMG_SIZE as usize, IMG_SIZE as usize);
-
-        let mut map_generator = MapGenerator::new(IMG_SIZE, IMG_SIZE);
-
-        let mut hover_pos = None;
+        let mut appstate = AppState::default();
 
         let start = Instant::now();
-
-        set_global_write_mode(true);
-        set_global_shift_noise(false);
-        map_generator.gen_biomes_multithreaded(1024);
-        set_global_shift_noise(true);
-        set_global_write_mode(false);
-
+        appstate.initialise_maps();
         let duration = start.elapsed();
         println!("Biome Generation Took: {:?}ms", duration.as_millis());
-
-
-        for value in &mut map_generator.h_map {
-            //*value = float_to_u16(u16_to_float(*value) - 0.5);
-        }
-
-        images.main_map.copy_u32_color_data(&map_generator.main_map);
-        images.height_map.copy_u8_greyscale_data(&map_generator.height_map);
-        images.t_map.copy_u16_greyscale_data(&map_generator.t_map);
-        images.h_map.copy_u16_greyscale_data(&map_generator.h_map);
-        images.c_map.copy_u16_greyscale_data(&map_generator.c_map);
-        images.e_map.copy_u16_greyscale_data(&map_generator.e_map);
-        images.w_map.copy_u16_greyscale_data(&map_generator.w_map);
-
-        create_shaded_relief_map(
-            &mut images.shaded_relief_map, 
-            &map_generator.main_map, 
-            &map_generator.height_map, 
-            IMG_SIZE, IMG_SIZE);
-        
-        images.shaded_relief_map.send_texture_to_gpu();
 
 
 
@@ -117,7 +84,7 @@ impl Default for MyApp {
             .main_surface_mut()
             .split_below(t4, 1.0/2.0, vec!["Peaks & Valleys".to_owned()]);
 
-        Self {tree, images, map_generator, hover_pos}
+        Self {tree, appstate}
 
     }
 }
@@ -132,9 +99,7 @@ impl eframe::App for MyApp {
             .show_leaf_close_all_buttons(false)
             .show_leaf_collapse_buttons(false)
             .show_inside(ui, &mut TabViewer { 
-                images: &mut self.images, 
-                map_generator: &mut self.map_generator, 
-                hover_pos: &mut self.hover_pos,
+                appstate: &mut self.appstate, 
             });
     }
 }
